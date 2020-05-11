@@ -379,12 +379,8 @@ static int init_deinit_ready_event_handler(ol_scn_t scn_handle,
 
 	legacy_callback = target_if_get_psoc_legacy_service_ready_cb();
 	if (legacy_callback)
-		if (legacy_callback(wmi_ready_event_id,
-				    scn_handle, event, data_len)) {
-			target_if_err("Legacy callback returned error!");
-			tgt_hdl->info.wmi_ready = FALSE;
-			goto exit;
-		}
+		legacy_callback(wmi_ready_event_id,
+				scn_handle, event, data_len);
 
 	num_radios = target_psoc_get_num_radios(tgt_hdl);
 	/*
@@ -444,7 +440,6 @@ static int init_deinit_ready_event_handler(ol_scn_t scn_handle,
 out:
 	target_if_btcoex_cfg_enable(psoc, tgt_hdl, event);
 	tgt_hdl->info.wmi_ready = TRUE;
-exit:
 	init_deinit_wakeup_host_wait(psoc, tgt_hdl);
 
 	return 0;

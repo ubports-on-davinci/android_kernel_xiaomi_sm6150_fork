@@ -2854,7 +2854,6 @@ int hdd_softap_set_channel_change(struct net_device *dev, int target_channel,
 	struct hdd_context *hdd_ctx = NULL;
 	struct hdd_adapter *sta_adapter;
 	struct hdd_station_ctx *sta_ctx;
-	bool is_p2p_go_session = false;
 
 	hdd_ctx = WLAN_HDD_GET_CTX(adapter);
 	ret = wlan_hdd_validate_context(hdd_ctx);
@@ -2951,8 +2950,6 @@ int hdd_softap_set_channel_change(struct net_device *dev, int target_channel,
 	/* Disable Roaming on all adapters before doing channel change */
 	wlan_hdd_disable_roaming(adapter);
 
-	if (wlan_vdev_mlme_get_opmode(adapter->vdev) == QDF_P2P_GO_MODE)
-		is_p2p_go_session = true;
 	/*
 	 * Post the Channel Change request to SAP.
 	 */
@@ -2960,8 +2957,7 @@ int hdd_softap_set_channel_change(struct net_device *dev, int target_channel,
 		WLAN_HDD_GET_SAP_CTX_PTR(adapter),
 		(uint32_t)target_channel,
 		target_bw,
-		(forced && !(hdd_ctx->config->sta_sap_scc_on_lte_coex_chan)) ||
-		 is_p2p_go_session);
+		forced && !(hdd_ctx->config->sta_sap_scc_on_lte_coex_chan));
 
 	if (QDF_STATUS_SUCCESS != status) {
 		hdd_err("SAP set channel failed for channel: %d, bw: %d",
@@ -6270,7 +6266,7 @@ const struct net_device_ops net_ops_struct = {
 	.ndo_set_mac_address = hdd_hostapd_set_mac_address,
 	.ndo_do_ioctl = hdd_ioctl,
 	.ndo_change_mtu = hdd_hostapd_change_mtu,
-	.ndo_select_queue = hdd_select_queue,
+	.ndo_select_queue = hdd_hostapd_select_queue,
 };
 
 void hdd_set_ap_ops(struct net_device *dev)
@@ -7193,6 +7189,10 @@ int wlan_hdd_cfg80211_update_apies(struct hdd_adapter *adapter)
 	wlan_hdd_add_extra_ie(adapter, genie, &total_ielen,
 			      WLAN_EID_INTERWORKING);
 
+	if (test_bit(SOFTAP_BSS_STARTED, &adapter->event_flags))
+		wlan_hdd_add_extra_ie(adapter, genie, &total_ielen,
+				      WLAN_EID_RSN);
+
 #ifdef FEATURE_WLAN_WAPI
 	if (QDF_SAP_MODE == adapter->device_mode) {
 		wlan_hdd_add_extra_ie(adapter, genie, &total_ielen,
@@ -7580,7 +7580,7 @@ static int wlan_hdd_setup_driver_overrides(struct hdd_adapter *ap_adapter)
 		return 0;
 }
 
-void hdd_check_and_disconnect_sta_on_invalid_channel(
+static void hdd_check_and_disconnect_sta_on_invalid_channel(
 		struct hdd_context *hdd_ctx)
 {
 	struct hdd_adapter *sta_adapter;
@@ -7687,13 +7687,9 @@ int wlan_hdd_restore_channels(struct hdd_context *hdd_ctx,
 		 * Restore the orginal states of the channels
 		 * only if we have cached non zero values
 		 */
-		wiphy_channel->flags =
+		if (cache_chann->channel_info[i].wiphy_status && wiphy_channel)
+			wiphy_channel->flags =
 				cache_chann->channel_info[i].wiphy_status;
-
-		hdd_debug("Restore channel %d reg_stat %d wiphy_stat 0x%x",
-			  cache_chann->channel_info[i].channel_num,
-			  cache_chann->channel_info[i].reg_status,
-			  wiphy_channel->flags);
 	}
 
 	qdf_mutex_release(&hdd_ctx->cache_channel_lock);
@@ -7709,7 +7705,16 @@ int wlan_hdd_restore_channels(struct hdd_context *hdd_ctx,
 	return 0;
 }
 
-int wlan_hdd_disable_channels(struct hdd_context *hdd_ctx)
+/**
+ * wlan_hdd_disable_channels() - Cache the channels
+ * and current state of the channels from the channel list
+ * received in the command and disable the channels on the
+ * wiphy and reg table.
+ * @hdd_ctx: Pointer to hdd context
+ *
+ * Return: 0 on success, Error code on failure
+ */
+static int wlan_hdd_disable_channels(struct hdd_context *hdd_ctx)
 {
 	struct hdd_cache_channels *cache_chann;
 	struct wiphy *wiphy;
@@ -7775,7 +7780,7 @@ int wlan_hdd_disable_channels(struct hdd_context *hdd_ctx)
 	return status;
 }
 #else
-int wlan_hdd_disable_channels(struct hdd_context *hdd_ctx)
+static int wlan_hdd_disable_channels(struct hdd_context *hdd_ctx)
 {
 	return 0;
 }
@@ -7830,7 +7835,7 @@ int wlan_hdd_cfg80211_start_bss(struct hdd_adapter *adapter,
 
 	hdd_enter();
 
-	hdd_notify_teardown_tdls_links(hdd_ctx->psoc);
+	hdd_notify_teardown_tdls_links(adapter->vdev);
 
 	if (policy_mgr_is_hw_mode_change_in_progress(hdd_ctx->psoc)) {
 		status = policy_mgr_wait_for_connection_update(
@@ -7911,6 +7916,18 @@ int wlan_hdd_cfg80211_start_bss(struct hdd_adapter *adapter,
 		if (policy_mgr_is_force_scc(hdd_ctx->psoc))
 			hdd_check_and_disconnect_sta_on_invalid_channel(
 								       hdd_ctx);
+	}
+	if (adapter->device_mode == QDF_SAP_MODE) {
+		/*
+		 * Disable the channels received in command
+		 * SET_DISABLE_CHANNEL_LIST
+		 */
+		status = wlan_hdd_disable_channels(hdd_ctx);
+		if (!QDF_IS_STATUS_SUCCESS(status))
+			hdd_err("Disable channel list fail");
+		else
+			hdd_check_and_disconnect_sta_on_invalid_channel(
+								hdd_ctx);
 	}
 
 	pBeacon = adapter->session.ap.beacon;
@@ -8497,6 +8514,8 @@ int wlan_hdd_cfg80211_start_bss(struct hdd_adapter *adapter,
 	goto free;
 
 error:
+	if (adapter->device_mode == QDF_SAP_MODE)
+		wlan_hdd_restore_channels(hdd_ctx, true);
 
 	/* Revert the indoor to passive marking if START BSS fails */
 	if (iniConfig->force_ssc_disable_indoor_channel &&

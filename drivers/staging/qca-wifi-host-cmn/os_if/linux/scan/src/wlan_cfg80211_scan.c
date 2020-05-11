@@ -41,7 +41,6 @@
 #ifdef FEATURE_WLAN_DIAG_SUPPORT
 #include "host_diag_core_event.h"
 #endif
-#define MAX_CHANNEL (NUM_24GHZ_CHANNELS + NUM_5GHZ_CHANNELS)
 
 static const
 struct nla_policy scan_policy[QCA_WLAN_VENDOR_ATTR_SCAN_MAX + 1] = {
@@ -93,7 +92,7 @@ static void wlan_fill_scan_rand_attrs(struct wlan_objmgr_vdev *vdev,
 	if (wlan_vdev_mlme_get_opmode(vdev) != QDF_STA_MODE)
 		return;
 
-	if (wlan_vdev_is_up(vdev))
+	if (wlan_vdev_is_connected(vdev))
 		return;
 
 	*randomize = true;
@@ -452,7 +451,7 @@ int wlan_cfg80211_sched_scan_start(struct wlan_objmgr_pdev *pdev,
 
 	enable_dfs_pno_chnl_scan = ucfg_scan_is_dfs_chnl_scan_enabled(psoc);
 	if (request->n_channels) {
-		char chl[MAX_CHANNEL * 5 + 1];
+		char chl[(request->n_channels * 5) + 1];
 		int len = 0;
 		bool ap_or_go_present = wlan_cfg80211_is_ap_go_present(psoc);
 
@@ -1340,8 +1339,7 @@ int wlan_cfg80211_scan(struct wlan_objmgr_pdev *pdev,
 	 * empty, and the simultaneous scan is disabled, dont allow 2nd scan
 	 */
 	if (!wlan_cfg80211_allow_simultaneous_scan(psoc) &&
-	    !qdf_list_empty(&osif_priv->osif_scan->scan_req_q) &&
-	    wlan_vdev_mlme_get_opmode(vdev) != QDF_SAP_MODE) {
+	    !qdf_list_empty(&osif_priv->osif_scan->scan_req_q)) {
 		wlan_objmgr_vdev_release_ref(vdev, WLAN_OSIF_ID);
 		cfg80211_err("Simultaneous scan disabled, reject scan");
 		return -EBUSY;
@@ -1442,7 +1440,7 @@ int wlan_cfg80211_scan(struct wlan_objmgr_pdev *pdev,
 		qdf_set_macaddr_broadcast(&req->scan_req.bssid_list[0]);
 
 	if (request->n_channels) {
-		char chl[MAX_CHANNEL * 5 + 1];
+		char chl[(request->n_channels * 5) + 1];
 		int len = 0;
 #ifdef WLAN_POLICY_MGR_ENABLE
 		bool ap_or_go_present =
@@ -1501,7 +1499,7 @@ int wlan_cfg80211_scan(struct wlan_objmgr_pdev *pdev,
 	req->scan_req.chan_list.num_chan = num_chan;
 
 	/* P2P increase the scan priority */
-	if (is_p2p_scan || wlan_vdev_mlme_get_opmode(vdev) == QDF_SAP_MODE)
+	if (is_p2p_scan)
 		req->scan_req.scan_priority = SCAN_PRIORITY_HIGH;
 	if (request->ie_len) {
 		req->scan_req.extraie.ptr = qdf_mem_malloc(request->ie_len);

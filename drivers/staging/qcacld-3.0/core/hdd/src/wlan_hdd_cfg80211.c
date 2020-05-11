@@ -111,7 +111,6 @@
 #include <wlan_cp_stats_mc_ucfg_api.h>
 #include "wlan_hdd_object_manager.h"
 #include "wlan_hdd_coex_config.h"
-#include "wlan_hdd_hw_capability.h"
 
 #define g_mode_rates_size (12)
 #define a_mode_rates_size (8)
@@ -1604,15 +1603,12 @@ int wlan_hdd_sap_cfg_dfs_override(struct hdd_adapter *adapter)
 					con_sap_config->acs_cfg.ch_list_count);
 		if (!sap_config->acs_cfg.ch_list) {
 			hdd_err("ACS config alloc fail");
-			sap_config->acs_cfg.ch_list_count = 0;
 			return -ENOMEM;
 		}
 
 		qdf_mem_copy(sap_config->acs_cfg.ch_list,
 					con_sap_config->acs_cfg.ch_list,
 					con_sap_config->acs_cfg.ch_list_count);
-		sap_config->acs_cfg.ch_list_count =
-				con_sap_config->acs_cfg.ch_list_count;
 
 	} else {
 		sap_config->acs_cfg.pri_ch = con_ch;
@@ -2775,11 +2771,9 @@ void wlan_hdd_undo_acs(struct hdd_adapter *adapter)
 	if (adapter == NULL)
 		return;
 	if (adapter->session.ap.sap_config.acs_cfg.ch_list) {
-		hdd_debug("Clear acs cfg channel list");
 		qdf_mem_free(adapter->session.ap.sap_config.acs_cfg.ch_list);
 		adapter->session.ap.sap_config.acs_cfg.ch_list = NULL;
 	}
-	adapter->session.ap.sap_config.acs_cfg.ch_list_count = 0;
 }
 
 /**
@@ -4246,7 +4240,9 @@ static int __wlan_hdd_cfg80211_disable_dfs_chan_scan(struct wiphy *wiphy,
 						     const void *data,
 						     int data_len)
 {
+#ifdef WLAN_DEBUG
 	struct net_device *dev = wdev->netdev;
+#endif
 	struct hdd_context *hdd_ctx  = wiphy_priv(wiphy);
 	struct nlattr *tb[QCA_WLAN_VENDOR_ATTR_SET_NO_DFS_FLAG_MAX + 1];
 	int ret_val;
@@ -7944,7 +7940,7 @@ static int hdd_map_req_id_to_pattern_id(struct hdd_context *hdd_ctx,
 		}
 	}
 	mutex_unlock(&hdd_ctx->op_ctx.op_lock);
-	return -ENOBUFS;
+	return -EINVAL;
 }
 
 /**
@@ -8014,8 +8010,7 @@ wlan_hdd_add_tx_ptrn(struct hdd_adapter *adapter, struct hdd_context *hdd_ctx,
 {
 	struct sSirAddPeriodicTxPtrn *add_req;
 	QDF_STATUS status;
-	uint32_t request_id, len;
-	int32_t ret;
+	uint32_t request_id, ret, len;
 	uint8_t pattern_id = 0;
 	struct qdf_mac_addr dst_addr;
 	uint16_t eth_type = htons(ETH_P_IP);
@@ -8035,21 +8030,18 @@ wlan_hdd_add_tx_ptrn(struct hdd_adapter *adapter, struct hdd_context *hdd_ctx,
 	/* Parse and fetch request Id */
 	if (!tb[PARAM_REQUEST_ID]) {
 		hdd_err("attr request id failed");
-		ret = -EINVAL;
 		goto fail;
 	}
 
 	request_id = nla_get_u32(tb[PARAM_REQUEST_ID]);
 	if (request_id == MAX_REQUEST_ID) {
 		hdd_err("request_id cannot be MAX");
-		ret = -EINVAL;
 		goto fail;
 	}
 	hdd_debug("Request Id: %u", request_id);
 
 	if (!tb[PARAM_PERIOD]) {
 		hdd_err("attr period failed");
-		ret = -EINVAL;
 		goto fail;
 	}
 
@@ -8057,13 +8049,11 @@ wlan_hdd_add_tx_ptrn(struct hdd_adapter *adapter, struct hdd_context *hdd_ctx,
 	hdd_debug("Period: %u ms", add_req->usPtrnIntervalMs);
 	if (add_req->usPtrnIntervalMs == 0) {
 		hdd_err("Invalid interval zero, return failure");
-		ret = -EINVAL;
 		goto fail;
 	}
 
 	if (!tb[PARAM_SRC_MAC_ADDR]) {
 		hdd_err("attr source mac address failed");
-		ret = -EINVAL;
 		goto fail;
 	}
 	nla_memcpy(add_req->mac_address.bytes, tb[PARAM_SRC_MAC_ADDR],
@@ -8074,13 +8064,11 @@ wlan_hdd_add_tx_ptrn(struct hdd_adapter *adapter, struct hdd_context *hdd_ctx,
 	if (!qdf_is_macaddr_equal(&add_req->mac_address,
 				  &adapter->mac_addr)) {
 		hdd_err("input src mac address and connected ap bssid are different");
-		ret = -EINVAL;
 		goto fail;
 	}
 
 	if (!tb[PARAM_DST_MAC_ADDR]) {
 		hdd_err("attr dst mac address failed");
-		ret = -EINVAL;
 		goto fail;
 	}
 	nla_memcpy(dst_addr.bytes, tb[PARAM_DST_MAC_ADDR], QDF_MAC_ADDR_SIZE);
@@ -8089,7 +8077,6 @@ wlan_hdd_add_tx_ptrn(struct hdd_adapter *adapter, struct hdd_context *hdd_ctx,
 
 	if (!tb[PARAM_IP_PACKET]) {
 		hdd_err("attr ip packet failed");
-		ret = -EINVAL;
 		goto fail;
 	}
 	add_req->ucPtrnSize = nla_len(tb[PARAM_IP_PACKET]);
@@ -8100,7 +8087,6 @@ wlan_hdd_add_tx_ptrn(struct hdd_adapter *adapter, struct hdd_context *hdd_ctx,
 					ETH_HLEN)) {
 		hdd_err("Invalid IP packet len: %d",
 				add_req->ucPtrnSize);
-		ret = -EINVAL;
 		goto fail;
 	}
 
@@ -8143,15 +8129,16 @@ wlan_hdd_add_tx_ptrn(struct hdd_adapter *adapter, struct hdd_context *hdd_ctx,
 	status = sme_add_periodic_tx_ptrn(mac_handle, add_req);
 	if (!QDF_IS_STATUS_SUCCESS(status)) {
 		hdd_err("sme_add_periodic_tx_ptrn failed (err=%d)", status);
-		ret = qdf_status_to_os_return(status);
 		goto fail;
 	}
 
 	hdd_exit();
+	qdf_mem_free(add_req);
+	return 0;
 
 fail:
 	qdf_mem_free(add_req);
-	return ret;
+	return -EINVAL;
 }
 
 /**
@@ -11819,6 +11806,17 @@ static u32 hdd_sar_wmi_to_nl_modulation(uint32_t wmi_value)
 	}
 }
 
+static const struct nla_policy
+sar_limits_policy[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_MAX + 1] = {
+	[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SAR_ENABLE] = {.type = NLA_U32},
+	[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_NUM_SPECS] = {.type = NLA_U32},
+	[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_BAND] = {.type = NLA_U32},
+	[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_CHAIN] = {.type = NLA_U32},
+	[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_MODULATION] = {.type = NLA_U32},
+	[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_POWER_LIMIT] = {.type = NLA_U32},
+	[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_POWER_LIMIT_INDEX] = {.type = NLA_U32},
+};
+
 #define WLAN_WAIT_TIME_SAR 5000
 
 /**
@@ -12073,116 +12071,6 @@ static int wlan_hdd_cfg80211_get_sar_power_limits(struct wiphy *wiphy,
 	return ret;
 }
 
-void hdd_store_sar_config(struct hdd_context *hdd_ctx,
-			  struct sar_limit_cmd_params *sar_limit_cmd)
-{
-	/* Free the previously stored sar_limit_cmd */
-	wlan_hdd_free_sar_config(hdd_ctx);
-
-	hdd_ctx->sar_cmd_params = sar_limit_cmd;
-}
-
-void wlan_hdd_free_sar_config(struct hdd_context *hdd_ctx)
-{
-	struct sar_limit_cmd_params *sar_limit_cmd;
-
-	if (!hdd_ctx->sar_cmd_params)
-		return;
-
-	sar_limit_cmd = hdd_ctx->sar_cmd_params;
-	hdd_ctx->sar_cmd_params = NULL;
-	qdf_mem_free(sar_limit_cmd->sar_limit_row_list);
-	qdf_mem_free(sar_limit_cmd);
-}
-
-#define SAR_LIMITS_SAR_ENABLE QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SAR_ENABLE
-#define SAR_LIMITS_NUM_SPECS QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_NUM_SPECS
-#define SAR_LIMITS_SPEC QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC
-#define SAR_LIMITS_SPEC_BAND QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_BAND
-#define SAR_LIMITS_SPEC_CHAIN QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_CHAIN
-#define SAR_LIMITS_SPEC_MODULATION \
-	QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_MODULATION
-#define SAR_LIMITS_SPEC_POWER_LIMIT \
-	QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_POWER_LIMIT
-#define SAR_LIMITS_SPEC_POWER_LIMIT_INDEX \
-	QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_POWER_LIMIT_INDEX
-#define SAR_LIMITS_MAX QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_MAX
-
-static const struct nla_policy
-sar_limits_policy[SAR_LIMITS_MAX + 1] = {
-	[SAR_LIMITS_SAR_ENABLE] = {.type = NLA_U32},
-	[SAR_LIMITS_NUM_SPECS] = {.type = NLA_U32},
-	[SAR_LIMITS_SPEC_BAND] = {.type = NLA_U32},
-	[SAR_LIMITS_SPEC_CHAIN] = {.type = NLA_U32},
-	[SAR_LIMITS_SPEC_MODULATION] = {.type = NLA_U32},
-	[SAR_LIMITS_SPEC_POWER_LIMIT] = {.type = NLA_U32},
-	[SAR_LIMITS_SPEC_POWER_LIMIT_INDEX] = {.type = NLA_U32},
-};
-
-/**
- * hdd_extract_sar_nested_attrs() - Extract nested SAR attribute
- * @spec: nested nla attribue
- * @row: output to hold extract nested attribute
- *
- * This function extracts nested SAR attribute one at a time which means
- * for each nested attribute this has to be invoked from
- * __wlan_hdd_set_sar_power_limits().
- *
- * Return: On success - 0
- *         On Failure - Negative value
- */
-static int hdd_extract_sar_nested_attrs(struct nlattr *spec[],
-					struct sar_limit_cmd_row *row)
-{
-	uint32_t limit;
-	uint32_t band;
-	uint32_t modulation;
-	int ret;
-
-	row->validity_bitmap = 0;
-
-	if (spec[SAR_LIMITS_SPEC_POWER_LIMIT]) {
-		limit = nla_get_u32(spec[SAR_LIMITS_SPEC_POWER_LIMIT]);
-		row->limit_value = limit;
-	} else if (spec[SAR_LIMITS_SPEC_POWER_LIMIT_INDEX]) {
-		limit = nla_get_u32(spec[SAR_LIMITS_SPEC_POWER_LIMIT_INDEX]);
-		row->limit_value = limit;
-	} else {
-		hdd_err("SAR Spec does not have power limit or index value");
-		return -EINVAL;
-	}
-
-	if (spec[SAR_LIMITS_SPEC_BAND]) {
-		band = nla_get_u32(spec[SAR_LIMITS_SPEC_BAND]);
-		ret = wlan_hdd_cfg80211_sar_convert_band(band, &row->band_id);
-		if (ret) {
-			hdd_err("Invalid SAR Band attr");
-			return ret;
-		}
-
-		row->validity_bitmap |= WMI_SAR_BAND_ID_VALID_MASK;
-	}
-
-	if (spec[SAR_LIMITS_SPEC_CHAIN]) {
-		row->chain_id = nla_get_u32(spec[SAR_LIMITS_SPEC_CHAIN]);
-		row->validity_bitmap |= WMI_SAR_CHAIN_ID_VALID_MASK;
-	}
-
-	if (spec[SAR_LIMITS_SPEC_MODULATION]) {
-		modulation = nla_get_u32(spec[SAR_LIMITS_SPEC_MODULATION]);
-		ret = wlan_hdd_cfg80211_sar_convert_modulation(modulation,
-							       &row->mod_id);
-		if (ret) {
-			hdd_err("Invalid SAR Modulation attr");
-			return ret;
-		}
-
-		row->validity_bitmap |= WMI_SAR_MOD_ID_VALID_MASK;
-	}
-
-	return 0;
-}
-
 /**
  * __wlan_hdd_set_sar_power_limits() - Set SAR power limits
  * @wiphy: Pointer to wireless phy
@@ -12199,14 +12087,12 @@ static int __wlan_hdd_set_sar_power_limits(struct wiphy *wiphy,
 					   const void *data, int data_len)
 {
 	struct hdd_context *hdd_ctx = wiphy_priv(wiphy);
-	struct nlattr *spec[SAR_LIMITS_MAX + 1];
-	struct nlattr *tb[SAR_LIMITS_MAX + 1];
-	struct nlattr *spec_list;
-	struct sar_limit_cmd_params *sar_limit_cmd;
+	struct nlattr *sar_spec[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_MAX + 1],
+		      *tb[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_MAX + 1],
+		      *sar_spec_list;
+	struct sar_limit_cmd_params sar_limit_cmd = {0};
 	int ret = -EINVAL, i = 0, rem = 0;
-	QDF_STATUS status;
-	uint32_t num_limit_rows = 0;
-	struct sar_limit_cmd_row *row;
+	mac_handle_t mac_handle;
 
 	hdd_enter();
 
@@ -12218,131 +12104,136 @@ static int __wlan_hdd_set_sar_power_limits(struct wiphy *wiphy,
 	if (wlan_hdd_validate_context(hdd_ctx))
 		return -EINVAL;
 
-	if (wlan_cfg80211_nla_parse(tb, SAR_LIMITS_MAX, data, data_len,
-				    sar_limits_policy)) {
+	if (wlan_cfg80211_nla_parse(tb, QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_MAX,
+				    data, data_len, sar_limits_policy)) {
 		hdd_err("Invalid SAR attributes");
 		return -EINVAL;
 	}
 
-	sar_limit_cmd = qdf_mem_malloc(sizeof(struct sar_limit_cmd_params));
-	if (!sar_limit_cmd)
-		return -ENOMEM;
-
 	/* is special SAR V1 => SAR V2 logic enabled and applicable? */
-	if (hdd_convert_sarv1_to_sarv2(hdd_ctx, tb, sar_limit_cmd))
+	if (hdd_convert_sarv1_to_sarv2(hdd_ctx, tb, &sar_limit_cmd))
 		goto send_sar_limits;
 
 	/* Vendor command manadates all SAR Specs in single call */
-	sar_limit_cmd->commit_limits = 1;
-	sar_limit_cmd->sar_enable = WMI_SAR_FEATURE_NO_CHANGE;
-	if (tb[SAR_LIMITS_SAR_ENABLE]) {
-		uint32_t sar_enable = nla_get_u32(tb[SAR_LIMITS_SAR_ENABLE]);
-		uint32_t *sar_ptr = &sar_limit_cmd->sar_enable;
-
-		ret = wlan_hdd_cfg80211_sar_convert_limit_set(sar_enable,
-							      sar_ptr);
-		if (ret) {
+	sar_limit_cmd.commit_limits = 1;
+	sar_limit_cmd.sar_enable = WMI_SAR_FEATURE_NO_CHANGE;
+	if (tb[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SAR_ENABLE]) {
+		if (wlan_hdd_cfg80211_sar_convert_limit_set(nla_get_u32(
+				tb[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SAR_ENABLE]),
+				&sar_limit_cmd.sar_enable) < 0) {
 			hdd_err("Invalid SAR Enable attr");
 			goto fail;
 		}
 	}
+	hdd_debug("attr sar sar_enable %d", sar_limit_cmd.sar_enable);
 
-	hdd_debug("attr sar sar_enable %d", sar_limit_cmd->sar_enable);
-
-	if (tb[SAR_LIMITS_NUM_SPECS]) {
-		num_limit_rows = nla_get_u32(tb[SAR_LIMITS_NUM_SPECS]);
-		hdd_debug("attr sar num_limit_rows %u", num_limit_rows);
+	if (tb[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_NUM_SPECS]) {
+		sar_limit_cmd.num_limit_rows = nla_get_u32(
+			tb[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_NUM_SPECS]);
+		hdd_debug("attr sar num_limit_rows %d",
+			sar_limit_cmd.num_limit_rows);
 	}
-
-	if (num_limit_rows > MAX_SAR_LIMIT_ROWS_SUPPORTED) {
+	if (sar_limit_cmd.num_limit_rows > MAX_SAR_LIMIT_ROWS_SUPPORTED) {
 		hdd_err("SAR Spec list exceed supported size");
 		goto fail;
 	}
-
-	if (num_limit_rows == 0)
+	if (sar_limit_cmd.num_limit_rows == 0)
 		goto send_sar_limits;
-
-	row = qdf_mem_malloc(sizeof(*row) * num_limit_rows);
-	if (!row) {
-		hdd_err("Failed to allocate memory for sar_limit_row_list");
+	sar_limit_cmd.sar_limit_row_list = qdf_mem_malloc(sizeof(
+						struct sar_limit_cmd_row) *
+						sar_limit_cmd.num_limit_rows);
+	if (!sar_limit_cmd.sar_limit_row_list) {
+		ret = -ENOMEM;
+		goto fail;
+	}
+	if (!tb[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC]) {
+		hdd_err("Invalid SAR SPECs list");
 		goto fail;
 	}
 
-	sar_limit_cmd->num_limit_rows = num_limit_rows;
-	sar_limit_cmd->sar_limit_row_list = row;
-
-	if (!tb[SAR_LIMITS_SPEC]) {
-		hdd_err("Invalid SAR specification list");
-		goto fail;
-	}
-
-	nla_for_each_nested(spec_list, tb[SAR_LIMITS_SPEC], rem) {
-		if (i == num_limit_rows) {
+	nla_for_each_nested(sar_spec_list,
+			    tb[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC], rem) {
+		if (i == sar_limit_cmd.num_limit_rows) {
 			hdd_warn("SAR Cmd has excess SPECs in list");
 			break;
 		}
 
-		if (wlan_cfg80211_nla_parse(spec,
-					    SAR_LIMITS_MAX,
-					    nla_data(spec_list),
-					    nla_len(spec_list),
+		if (wlan_cfg80211_nla_parse(sar_spec,
+					    QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_MAX,
+					    nla_data(sar_spec_list),
+					    nla_len(sar_spec_list),
 					    sar_limits_policy)) {
 			hdd_err("nla_parse failed for SAR Spec list");
 			goto fail;
 		}
-
-		ret = hdd_extract_sar_nested_attrs(spec, row);
-		if (ret) {
-			hdd_err("Failed to extract SAR nested attrs");
+		sar_limit_cmd.sar_limit_row_list[i].validity_bitmap = 0;
+		if (sar_spec[
+			    QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_POWER_LIMIT]) {
+			sar_limit_cmd.sar_limit_row_list[i].limit_value =
+				nla_get_u32(sar_spec[
+				QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_POWER_LIMIT]);
+		} else if (sar_spec[
+			    QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_POWER_LIMIT_INDEX]) {
+			sar_limit_cmd.sar_limit_row_list[i].limit_value =
+				nla_get_u32(sar_spec[
+				QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_POWER_LIMIT_INDEX]);
+		} else {
+			hdd_err("SAR Spec does not have power limit or index value");
 			goto fail;
 		}
 
+		if (sar_spec[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_BAND]) {
+			if (wlan_hdd_cfg80211_sar_convert_band(nla_get_u32(
+					sar_spec[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_BAND]),
+					&sar_limit_cmd.sar_limit_row_list[i].band_id)
+					< 0) {
+				hdd_err("Invalid SAR Band attr");
+				goto fail;
+			}
+			sar_limit_cmd.sar_limit_row_list[i].validity_bitmap |=
+						WMI_SAR_BAND_ID_VALID_MASK;
+		}
+		if (sar_spec[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_CHAIN]) {
+			sar_limit_cmd.sar_limit_row_list[i].chain_id =
+				nla_get_u32(sar_spec[
+				QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_CHAIN]);
+			sar_limit_cmd.sar_limit_row_list[i].validity_bitmap |=
+						WMI_SAR_CHAIN_ID_VALID_MASK;
+		}
+		if (sar_spec[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_MODULATION]) {
+			if (wlan_hdd_cfg80211_sar_convert_modulation(nla_get_u32(
+					sar_spec[QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_MODULATION]),
+					&sar_limit_cmd.sar_limit_row_list[i].mod_id)
+					< 0) {
+				hdd_err("Invalid SAR Modulation attr");
+				goto fail;
+			}
+			sar_limit_cmd.sar_limit_row_list[i].validity_bitmap |=
+						WMI_SAR_MOD_ID_VALID_MASK;
+		}
 		hdd_debug("Spec_ID: %d, Band: %d Chain: %d Mod: %d POW_Limit: %d Validity_Bitmap: %d",
-			  i, row->band_id, row->chain_id, row->mod_id,
-			  row->limit_value, row->validity_bitmap);
-
+			 i, sar_limit_cmd.sar_limit_row_list[i].band_id,
+			 sar_limit_cmd.sar_limit_row_list[i].chain_id,
+			 sar_limit_cmd.sar_limit_row_list[i].mod_id,
+			 sar_limit_cmd.sar_limit_row_list[i].limit_value,
+			 sar_limit_cmd.sar_limit_row_list[i].validity_bitmap);
 		i++;
-		row++;
 	}
 
-	if (i < sar_limit_cmd->num_limit_rows) {
+	if (i < sar_limit_cmd.num_limit_rows) {
 		hdd_warn("SAR Cmd has less SPECs in list");
-		sar_limit_cmd->num_limit_rows = i;
+		sar_limit_cmd.num_limit_rows = i;
 	}
 
 send_sar_limits:
-	status = sme_set_sar_power_limits(hdd_ctx->mac_handle, sar_limit_cmd);
-	if (QDF_IS_STATUS_ERROR(status)) {
-		hdd_err("Failed to set sar power limits");
-		goto fail;
-	}
-
-	/* After SSR, the SAR configuration is lost. As SSR is hidden from
-	 * userland, this command will not come from userspace after a SSR. To
-	 * restore this configuration, save this in hdd context and restore
-	 * after re-init.
-	 */
-	hdd_store_sar_config(hdd_ctx, sar_limit_cmd);
-	return 0;
-
+	mac_handle = hdd_ctx->mac_handle;
+	if (sme_set_sar_power_limits(mac_handle, &sar_limit_cmd) ==
+							QDF_STATUS_SUCCESS)
+		ret = 0;
 fail:
-	if (sar_limit_cmd) {
-		qdf_mem_free(sar_limit_cmd->sar_limit_row_list);
-		qdf_mem_free(sar_limit_cmd);
-	}
-
+	qdf_mem_free(sar_limit_cmd.sar_limit_row_list);
 	return ret;
 }
-
-#undef SAR_LIMITS_SAR_ENABLE
-#undef SAR_LIMITS_NUM_SPECS
-#undef SAR_LIMITS_SPEC
-#undef SAR_LIMITS_SPEC_BAND
-#undef SAR_LIMITS_SPEC_CHAIN
-#undef SAR_LIMITS_SPEC_MODULATION
-#undef SAR_LIMITS_SPEC_POWER_LIMIT
-#undef SAR_LIMITS_SPEC_POWER_LIMIT_INDEX
-#undef SAR_LIMITS_MAX
 
 /**
  * wlan_hdd_cfg80211_set_sar_power_limits() - Set SAR power limits
@@ -15072,7 +14963,6 @@ const struct wiphy_vendor_command hdd_wiphy_vendor_commands[] = {
 
 	FEATURE_COEX_CONFIG_COMMANDS
 	FEATURE_MPTA_HELPER_COMMANDS
-	FEATURE_HW_CAPABILITY_COMMANDS
 };
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
@@ -15700,7 +15590,6 @@ int wlan_hdd_cfg80211_init(struct device *dev,
 #endif
 	wiphy->features |= NL80211_FEATURE_INACTIVITY_TIMER;
 
-	wiphy->features |= NL80211_FEATURE_VIF_TXPOWER;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)) || \
 	defined(CFG80211_BEACON_TX_RATE_CUSTOM_BACKPORT)
 	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BEACON_RATE_LEGACY);
@@ -16392,6 +16281,13 @@ static int __wlan_hdd_cfg80211_change_iface(struct wiphy *wiphy,
 	status = hdd_wlan_start_modules(hdd_ctx, false);
 	if (status) {
 		hdd_err("Failed to start modules");
+		return -EINVAL;
+	}
+
+	if (!policy_mgr_allow_concurrency(hdd_ctx->psoc,
+				wlan_hdd_convert_nl_iftype_to_hdd_type(type),
+				0, HW_MODE_20_MHZ)) {
+		hdd_debug("This concurrency combination is not allowed");
 		return -EINVAL;
 	}
 
@@ -18125,7 +18021,7 @@ static int wlan_hdd_cfg80211_connect_start(struct hdd_adapter *adapter,
 	/* Disable roaming on all other adapters before connect start */
 	wlan_hdd_disable_roaming(adapter);
 
-	hdd_notify_teardown_tdls_links(hdd_ctx->psoc);
+	hdd_notify_teardown_tdls_links(adapter->vdev);
 
 	qdf_mem_zero(&hdd_sta_ctx->conn_info.conn_flag,
 		     sizeof(hdd_sta_ctx->conn_info.conn_flag));
@@ -20193,17 +20089,18 @@ static const char *hdd_ieee80211_reason_code_to_str(uint16_t reason)
  */
 static void hdd_print_netdev_txq_status(struct net_device *dev)
 {
-#ifdef WLAN_DEBUG
 	unsigned int i;
 
 	if (!dev)
 		return;
 
 	for (i = 0; i < dev->num_tx_queues; i++) {
+#ifdef WLAN_DEBUG
 		struct netdev_queue *txq = netdev_get_tx_queue(dev, i);
+#endif
+
 		hdd_debug("netdev tx queue[%u] state: 0x%lx", i, txq->state);
 	}
-#endif
 }
 
 /**

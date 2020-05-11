@@ -78,8 +78,6 @@
 #define TDLS_TEARDOWN_PEER_UNSPEC_REASON 26
 
 #define INVALID_TDLS_PEER_ID 0xFF
-#define INVALID_TDLS_PEER_INDEX 0xFF
-
 #define TDLS_STA_INDEX_CHECK(sta_id) \
 	(((sta_id) >= 0) && ((sta_id) < 0xFF))
 /**
@@ -542,7 +540,7 @@ typedef void (*tdls_rx_callback)(void *user_data,
  *
  * Return: true or false
  */
-typedef bool (*tdls_wmm_check)(uint8_t vdev_id);
+typedef bool (*tdls_wmm_check)(struct wlan_objmgr_vdev **vdev);
 
 
 /* This callback is used to report state change of peer to wpa_supplicant */
@@ -585,27 +583,6 @@ typedef void (*tdls_offchan_parms_callback)(struct wlan_objmgr_vdev *vdev);
 typedef void (*tdls_delete_all_peers_callback)(struct wlan_objmgr_vdev *vdev);
 
 /**
- * tdls_vdev_init_cb() - Callback for initializing the tdls private structure
- * @vdev: vdev object
- *
- * This callback will be used to create the vdev private object and store
- * in os_priv.
- *
- * Return: QDF_STATUS
- */
-typedef QDF_STATUS (*tdls_vdev_init_cb)(struct wlan_objmgr_vdev *vdev);
-
-/**
- * tdls_vdev_deinit_cb() - Callback for deinitializing the tdls private struct
- * @vdev: vdev object
- *
- * This callback will be used to destroy the vdev private object.
- *
- * Return: None
- */
-typedef void (*tdls_vdev_deinit_cb)(struct wlan_objmgr_vdev *vdev);
-
-/**
  * struct tdls_start_params - tdls start params
  * @config: tdls user config
  * @tdls_send_mgmt_req: pass eWNI_SME_TDLS_SEND_MGMT_REQ value
@@ -620,8 +597,6 @@ typedef void (*tdls_vdev_deinit_cb)(struct wlan_objmgr_vdev *vdev);
  * @tdls_reg_peer: register tdls peer with datapath
  * @tdls_dereg_peer: deregister tdls peer from datapath
  * @tdls_dp_vdev_update: update vdev flags in datapath
- * @tdls_osif_init_cb: callback to initialize the tdls priv
- * @tdls_osif_deinit_cb: callback to deinitialize the tdls priv
  */
 struct tdls_start_params {
 	struct tdls_user_config config;
@@ -641,8 +616,6 @@ struct tdls_start_params {
 	tdls_register_peer_callback tdls_reg_peer;
 	tdls_deregister_peer_callback tdls_dereg_peer;
 	tdls_dp_vdev_update_flags_callback tdls_dp_vdev_update;
-	tdls_vdev_init_cb tdls_osif_init_cb;
-	tdls_vdev_deinit_cb tdls_osif_deinit_cb;
 };
 
 /**

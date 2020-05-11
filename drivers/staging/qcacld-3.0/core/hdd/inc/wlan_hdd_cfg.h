@@ -299,7 +299,7 @@ enum hdd_dot11_mode {
  * gChannelBondingMode24GHz - Configures Channel Bonding in 24 GHz
  * @Min: 0
  * @Max: 10
- * @Default: 1
+ * @Default: 0
  *
  * This ini is used to set default channel bonding mode 24GHZ
  *
@@ -852,7 +852,7 @@ enum hdd_dot11_mode {
 #define CFG_DROP_BCN_ON_CHANNEL_MISMATCH      "drop_bcn_on_chan_mismatch"
 #define CFG_DROP_BCN_ON_CHANNEL_MISMATCH_MIN       (0)
 #define CFG_DROP_BCN_ON_CHANNEL_MISMATCH_MAX       (1)
-#define CFG_DROP_BCN_ON_CHANNEL_MISMATCH_DEFAULT   (0)
+#define CFG_DROP_BCN_ON_CHANNEL_MISMATCH_DEFAULT   (1)
 
 /*
  * <ini>
@@ -7597,6 +7597,7 @@ enum hdd_link_speed_rpt_type {
 #define CFG_LL_TX_HBW_FLOW_MAX_Q_DEPTH_DEFAULT     (1500)
 #endif /* QCA_LL_LEGACY_TX_FLOW_CONTROL */
 
+#ifdef QCA_LL_TX_FLOW_CONTROL_V2
 
 /*
  * <ini>
@@ -7647,6 +7648,7 @@ enum hdd_link_speed_rpt_type {
 #define CFG_LL_TX_FLOW_START_QUEUE_OFFSET_MIN      (0)
 #define CFG_LL_TX_FLOW_START_QUEUE_OFFSET_MAX      (30)
 
+#endif /* QCA_LL_TX_FLOW_CONTROL_V2 */
 
 #define CFG_SAP_MAX_OFFLOAD_PEERS                  "gMaxOffloadPeers"
 #define CFG_SAP_MAX_OFFLOAD_PEERS_MIN              (2)
@@ -9098,30 +9100,6 @@ enum hdd_link_speed_rpt_type {
 
 /*
  * <ini>
- * gTxAggSwRetry - Configure Tx aggregation sw retry
- * @Min: 0
- * @Max: 64
- * @Default: 0
- *
- * gTxAggSwRetry gives an option to configure Tx aggregation sw
- * retry. This can be useful in debugging throughput issues.
- *
- * Related: None
- *
- * Supported Feature: STA
- *
- * Usage: External
- *
- * </ini>
- */
-
-#define CFG_TX_AGGR_SW_RETRY      "gTxAggSwRetry"
-#define CFG_TX_AGGR_SW_RETRY_MIN      (0)
-#define CFG_TX_AGGR_SW_RETRY_MAX      (64)
-#define CFG_TX_AGGR_SW_RETRY_DEFAULT  (0)
-
-/*
- * <ini>
  * gTxNonAggSwRetryBE - Configure Tx non aggregation sw retry for BE
  * @Min: 0
  * @Max: 64
@@ -9215,30 +9193,6 @@ enum hdd_link_speed_rpt_type {
 #define CFG_TX_NON_AGGR_SW_RETRY_VO_MIN      (0)
 #define CFG_TX_NON_AGGR_SW_RETRY_VO_MAX      (64)
 #define CFG_TX_NON_AGGR_SW_RETRY_VO_DEFAULT  (0)
-
-/*
- * <ini>
- * gTxNonAggSwRetry - Configure Tx non aggregation sw retry
- * @Min: 0
- * @Max: 64
- * @Default: 0
- *
- * gTxNonAggSwRetry gives an option to configure Tx non aggregation sw
- * retry. This can be useful in debugging throughput issues.
- *
- * Related: None
- *
- * Supported Feature: STA
- *
- * Usage: External
- *
- * </ini>
- */
-
-#define CFG_TX_NON_AGGR_SW_RETRY      "gTxNonAggSwRetry"
-#define CFG_TX_NON_AGGR_SW_RETRY_MIN      (0)
-#define CFG_TX_NON_AGGR_SW_RETRY_MAX      (64)
-#define CFG_TX_NON_AGGR_SW_RETRY_DEFAULT  (0)
 
 /*
  * fine timing measurement capability information
@@ -9988,7 +9942,6 @@ enum dot11p_mode {
 #define CFG_SET_TSF_PTP_OPT_TX                    (0x2)
 #define CFG_SET_TSF_PTP_OPT_RAW                   (0x4)
 #define CFG_SET_TSF_DBG_FS                        (0x8)
-#define CFG_SET_TSF_PTP_OPT_TSF64_TX            (0x10)
 #define CFG_SET_TSF_PTP_OPT_DEFAULT               (0xf)
 #endif
 
@@ -10972,6 +10925,30 @@ enum dot11p_mode {
 
 /*
  * <ini>
+ * rx_wakelock_timeout - Amount of time to hold wakelock for RX unicast packets
+ * @Min: 0
+ * @Max: 100
+ * @Default: 50
+ *
+ * This ini item configures the amount of time, in milliseconds, that the driver
+ * should prevent system power collapse after receiving an RX unicast packet.
+ * A conigured value of 0 disables the RX Wakelock feature completely.
+ *
+ * Related: None.
+ *
+ * Supported Feature: RX Wakelock
+ *
+ * Usage: Internal/External
+ *
+ * </ini>
+ */
+#define CFG_RX_WAKELOCK_TIMEOUT_NAME     "rx_wakelock_timeout"
+#define CFG_RX_WAKELOCK_TIMEOUT_DEFAULT  (50)
+#define CFG_RX_WAKELOCK_TIMEOUT_MIN      (0)
+#define CFG_RX_WAKELOCK_TIMEOUT_MAX      (100)
+
+/*
+ * <ini>
  * enable_5g_band_pref - Enable preference for 5G from INI.
  * @Min: 0
  * @Max: 1
@@ -10996,8 +10973,8 @@ enum dot11p_mode {
 /*
  * <ini>
  * 5g_rssi_boost_threshold - A_band_boost_threshold above which 5 GHz is favored.
- * @Min: -70
- * @Max: -55
+ * @Min: -55
+ * @Max: -70
  * @Default: -60
  * This ini is used to set threshold for 5GHz band preference.
  *
@@ -11011,8 +10988,8 @@ enum dot11p_mode {
  * </ini>
  */
 #define CFG_5G_RSSI_BOOST_THRESHOLD_NAME         "5g_rssi_boost_threshold"
-#define CFG_5G_RSSI_BOOST_THRESHOLD_MIN          (-70)
-#define CFG_5G_RSSI_BOOST_THRESHOLD_MAX          (-55)
+#define CFG_5G_RSSI_BOOST_THRESHOLD_MIN          (-55)
+#define CFG_5G_RSSI_BOOST_THRESHOLD_MAX          (-70)
 #define CFG_5G_RSSI_BOOST_THRESHOLD_DEFAULT      (-60)
 
 /*
@@ -11063,8 +11040,8 @@ enum dot11p_mode {
  * <ini>
  * 5g_rssi_penalize_threshold - A_band_penalize_threshold above which
  * 5 GHz is not favored.
- * @Min: -80
- * @Max: -65
+ * @Min: -65
+ * @Max: -80
  * @Default: -70
  * This ini is used to set threshold for 5GHz band preference.
  *
@@ -11078,8 +11055,8 @@ enum dot11p_mode {
  * </ini>
  */
 #define CFG_5G_RSSI_PENALIZE_THRESHOLD_NAME      "5g_rssi_penalize_threshold"
-#define CFG_5G_RSSI_PENALIZE_THRESHOLD_MIN       (-80)
-#define CFG_5G_RSSI_PENALIZE_THRESHOLD_MAX       (-65)
+#define CFG_5G_RSSI_PENALIZE_THRESHOLD_MIN       (-65)
+#define CFG_5G_RSSI_PENALIZE_THRESHOLD_MAX       (-80)
 #define CFG_5G_RSSI_PENALIZE_THRESHOLD_DEFAULT   (-70)
 
 /*
@@ -14432,7 +14409,7 @@ enum hdd_external_acs_policy {
  * enable_esp_for_roam - Enable/disable esp feature
  * @Min: 0
  * @Max: 1
- * @Default: 1
+ * @Default: 0
  *
  * This ini is used to enable/disable ESP(Estimated service parameters) IE
  * parsing and decides whether firmware will include this in its scoring algo.
@@ -16528,8 +16505,10 @@ struct hdd_config {
 	uint32_t TxHbwFlowHighWaterMarkOffset;
 	uint32_t TxHbwFlowMaxQueueDepth;
 #endif /* QCA_LL_LEGACY_TX_FLOW_CONTROL */
+#ifdef QCA_LL_TX_FLOW_CONTROL_V2
 	uint32_t TxFlowStopQueueThreshold;
 	uint32_t TxFlowStartQueueOffset;
+#endif
 	uint8_t apMaxOffloadPeers;
 	uint8_t apMaxOffloadReorderBuffs;
 	bool advertiseConcurrentOperation;
@@ -16800,18 +16779,17 @@ struct hdd_config {
 	uint32_t tx_aggr_sw_retry_threshold_bk;
 	uint32_t tx_aggr_sw_retry_threshold_vi;
 	uint32_t tx_aggr_sw_retry_threshold_vo;
-	uint32_t tx_aggr_sw_retry_threshold;
 	uint32_t tx_non_aggr_sw_retry_threshold_be;
 	uint32_t tx_non_aggr_sw_retry_threshold_bk;
 	uint32_t tx_non_aggr_sw_retry_threshold_vi;
 	uint32_t tx_non_aggr_sw_retry_threshold_vo;
-	uint32_t tx_non_aggr_sw_retry_threshold;
 	bool sta_prefer_80MHz_over_160MHz;
 	uint8_t sap_max_inactivity_override;
 	bool fw_timeout_crash;
 	/* beacon count before channel switch */
 	uint8_t sap_chanswitch_beacon_cnt;
 	uint8_t sap_chanswitch_mode;
+	uint32_t rx_wakelock_timeout;
 	uint32_t max_sched_scan_plan_interval;
 	uint32_t max_sched_scan_plan_iterations;
 #ifdef WLAN_FEATURE_WOW_PULSE
@@ -17207,7 +17185,7 @@ QDF_STATUS hdd_set_idle_ps_config(struct hdd_context *hdd_ctx, bool val);
 void hdd_get_pmkid_modes(struct hdd_context *hdd_ctx,
 			 struct pmkid_mode_bits *pmkid_modes);
 
-int hdd_update_tgt_cfg(hdd_handle_t hdd_handle, struct wma_tgt_cfg *cfg);
+void hdd_update_tgt_cfg(hdd_handle_t hdd_handle, struct wma_tgt_cfg *cfg);
 
 /**
  * hdd_string_to_u8_array() - used to convert decimal string into u8 array

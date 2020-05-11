@@ -126,7 +126,7 @@ struct hdd_apf_context {
 #endif /* FEATURE_WLAN_APF */
 
 /** Number of Tx Queues */
-#if defined(QCA_LL_TX_FLOW_CONTROL_V2) || defined(QCA_LL_PDEV_TX_FLOW_CONTROL)
+#ifdef QCA_LL_TX_FLOW_CONTROL_V2
 #define NUM_TX_QUEUES 5
 #else
 #define NUM_TX_QUEUES 4
@@ -248,8 +248,6 @@ enum hdd_driver_flags {
 #define WLAN_WAIT_TIME_APF     1000
 
 #define WLAN_WAIT_TIME_FW_ROAM_STATS 1000
-
-#define WLAN_WAIT_TIME_ANTENNA_ISOLATION 8000
 
 /* Maximum time(ms) to wait for RSO CMD status event */
 #define WAIT_TIME_RSO_CMD_STATUS 2000
@@ -672,18 +670,6 @@ struct hdd_icmpv4_stats_s {
 	uint16_t tx_ack_cnt;
 };
 
-/**
- * struct hdd_peer_stats - Peer stats at HDD level
- * @rx_count: RX count
- * @rx_bytes: RX bytes
- * @fcs_count: FCS err count
- */
-struct hdd_peer_stats {
-	uint32_t rx_count;
-	uint64_t rx_bytes;
-	uint32_t fcs_count;
-};
-
 struct hdd_stats {
 	tCsrSummaryStatsInfo summary_stat;
 	tCsrGlobalClassAStatsInfo class_a_stat;
@@ -694,7 +680,6 @@ struct hdd_stats {
 	struct hdd_dns_stats_s hdd_dns_stats;
 	struct hdd_tcp_stats_s hdd_tcp_stats;
 	struct hdd_icmpv4_stats_s hdd_icmpv4_stats;
-	struct hdd_peer_stats peer_stats;
 #ifdef WLAN_FEATURE_11W
 	struct hdd_pmf_stats hdd_pmf_stats;
 #endif
@@ -1362,8 +1347,6 @@ struct hdd_adapter {
 	uint64_t cur_target_time;
 	uint64_t cur_tsf_sync_soc_time;
 	uint64_t last_tsf_sync_soc_time;
-	uint64_t cur_target_global_tsf_time;
-	uint64_t last_target_global_tsf_time;
 	qdf_mc_timer_t host_capture_req_timer;
 #ifdef WLAN_FEATURE_TSF_PLUS
 	/* spin lock for read/write timestamps */
@@ -1759,7 +1742,6 @@ struct hdd_dynamic_mac {
  * @pdev: object manager pdev context
  * @g_event_flags: a bitmap of hdd_driver_flags
  * @dynamic_nss_chains_support: Per vdev dynamic nss chains update capability
- * @sar_cmd_params: SAR command params to be configured to the FW
  */
 struct hdd_context {
 	struct wlan_objmgr_psoc *psoc;
@@ -1817,6 +1799,7 @@ struct hdd_context {
 	/** P2P Device MAC Address for the adapter  */
 	struct qdf_mac_addr p2p_device_address;
 
+	qdf_wake_lock_t rx_wake_lock;
 	qdf_wake_lock_t sap_wake_lock;
 
 	void *hdd_ipa;
@@ -2042,7 +2025,6 @@ struct hdd_context {
 	unsigned long provisioned_intf_addr_mask;
 	unsigned long derived_intf_addr_mask;
 	struct wlan_mlme_chain_cfg fw_chain_cfg;
-	struct sar_limit_cmd_params *sar_cmd_params;
 };
 
 /**

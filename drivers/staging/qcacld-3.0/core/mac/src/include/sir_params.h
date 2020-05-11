@@ -438,9 +438,7 @@ struct sir_mgmt_msg {
 
 #define SIR_HAL_PDEV_SET_PCL_TO_FW         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 161)
 
-#ifdef WLAN_MWS_INFO_DEBUGFS
-#define SIR_HAL_GET_MWS_COEX_INFO_REQ      (SIR_HAL_ITC_MSG_TYPES_BEGIN + 162)
-#endif /* WLAN_MWS_INFO_DEBUGFS */
+/* 162 unused */
 
 #define SIR_HAL_CLI_SET_CMD                (SIR_HAL_ITC_MSG_TYPES_BEGIN + 163)
 #ifndef REMOVE_PKT_LOG
@@ -693,8 +691,6 @@ struct sir_mgmt_msg {
 #define SIR_HAL_ROAM_BLACKLIST_MSG          (SIR_HAL_ITC_MSG_TYPES_BEGIN + 404)
 
 #define SIR_HAL_SEND_PEER_UNMAP_CONF        (SIR_HAL_ITC_MSG_TYPES_BEGIN + 411)
-
-#define SIR_HAL_GET_ISOLATION              (SIR_HAL_ITC_MSG_TYPES_BEGIN + 412)
 
 #define SIR_HAL_MSG_TYPES_END               (SIR_HAL_MSG_TYPES_BEGIN + 0x1FF)
 

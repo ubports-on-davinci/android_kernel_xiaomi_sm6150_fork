@@ -19,10 +19,6 @@ WLAN_COMMON_ROOT ?= ../qca-wifi-host-cmn
 WLAN_COMMON_INC ?= $(WLAN_ROOT)/$(WLAN_COMMON_ROOT)
 
 CONFIG_QCA_CLD_WLAN_PROFILE ?= default
-
-# Force user build
-TARGET_BUILD_VARIANT := user
-
 ifeq ($(KERNEL_BUILD), n)
 ifneq ($(ANDROID_BUILD_TOP),)
       override WLAN_ROOT := $(ANDROID_BUILD_TOP)/$(WLAN_ROOT)
@@ -30,7 +26,7 @@ ifneq ($(ANDROID_BUILD_TOP),)
 endif
 endif
 
-include $(WLAN_ROOT)/configs/$(patsubst "%",%,$(CONFIG_QCA_CLD_WLAN_PROFILE))_defconfig
+include $(WLAN_ROOT)/configs/$(CONFIG_QCA_CLD_WLAN_PROFILE)_defconfig
 
 ############ UAPI ############
 UAPI_DIR :=	uapi
@@ -80,9 +76,6 @@ HDD_OBJS += $(HDD_SRC_DIR)/wlan_hdd_debugfs_csr.o
 HDD_OBJS += $(HDD_SRC_DIR)/wlan_hdd_debugfs_connect.o
 HDD_OBJS += $(HDD_SRC_DIR)/wlan_hdd_debugfs_offload.o
 HDD_OBJS += $(HDD_SRC_DIR)/wlan_hdd_debugfs_roam.o
-ifeq ($(CONFIG_WLAN_MWS_INFO_DEBUGFS), y)
-HDD_OBJS += $(HDD_SRC_DIR)/wlan_hdd_debugfs_coex.o
-endif
 endif
 
 ifeq ($(CONFIG_WLAN_CONV_SPECTRAL_ENABLE),y)
@@ -184,11 +177,6 @@ endif
 ifeq ($(CONFIG_QCACLD_FEATURE_MPTA_HELPER), y)
 HDD_OBJS += $(HDD_SRC_DIR)/wlan_hdd_mpta_helper.o
 endif
-
-ifeq ($(CONFIG_QCACLD_FEATURE_HW_CAPABILITY), y)
-HDD_OBJS += $(HDD_SRC_DIR)/wlan_hdd_hw_capability.o
-endif
-
 ########### HOST DIAG LOG ###########
 HOST_DIAG_LOG_DIR :=	$(WLAN_COMMON_ROOT)/utils/host_diag_log
 
@@ -1346,9 +1334,6 @@ endif
 ifeq ($(CONFIG_WLAN_FEATURE_TWT), y)
 WMA_OBJS +=	$(WMA_SRC_DIR)/wma_twt.o
 endif
-ifeq ($(CONFIG_WLAN_MWS_INFO_DEBUGFS), y)
-WMA_OBJS +=	$(WMA_SRC_DIR)/wma_coex.o
-endif
 ############## PLD ##########
 PLD_DIR := core/pld
 PLD_INC_DIR := $(PLD_DIR)/inc
@@ -1460,7 +1445,9 @@ ifeq ($(CONFIG_REMOVE_PKT_LOG), n)
 INCS +=		$(PKTLOG_INC)
 endif
 
+ifeq ($(BUILD_DIAG_VERSION), y)
 INCS +=		$(HOST_DIAG_LOG_INC)
+endif
 
 INCS +=		$(DISA_INC)
 INCS +=		$(ACTION_OUI_INC)
@@ -1525,9 +1512,7 @@ OBJS +=		$(UMAC_TDLS_OBJS)
 OBJS +=		$(PMO_OBJS)
 OBJS +=		$(UMAC_P2P_OBJS)
 OBJS +=		$(UMAC_POLICY_MGR_OBJS)
-ifeq ($(BUILD_DEBUG_VERSION), 1)
-OBJS +=		$(WLAN_LOGGING_OBJS) $(FWLOG_OBJS)
-endif
+OBJS +=		$(WLAN_LOGGING_OBJS)
 OBJS +=		$(NLINK_OBJS)
 OBJS +=		$(PTT_OBJS)
 OBJS +=		$(UMAC_SER_OBJS)
@@ -1676,7 +1661,6 @@ cppflags-y +=	-DQCA_SUPPORT_TXRX_LOCAL_PEER_ID
 cppflags-$(CONFIG_WLAN_TX_FLOW_CONTROL_V2) += -DQCA_LL_TX_FLOW_CONTROL_V2
 cppflags-$(CONFIG_WLAN_TX_FLOW_CONTROL_V2) += -DQCA_LL_TX_FLOW_GLOBAL_MGMT_POOL
 cppflags-$(CONFIG_WLAN_TX_FLOW_CONTROL_LEGACY) += -DQCA_LL_LEGACY_TX_FLOW_CONTROL
-cppflags-$(CONFIG_WLAN_PDEV_TX_FLOW_CONTROL) += -DQCA_LL_PDEV_TX_FLOW_CONTROL
 
 ifeq ($(BUILD_DEBUG_VERSION), y)
 cppflags-y +=	-DWLAN_DEBUG
@@ -1724,8 +1708,6 @@ cppflags-$(CONFIG_CNSS_GENL) += -DCNSS_GENL
 cppflags-$(CONFIG_QCACLD_WLAN_LFR2) += -DWLAN_FEATURE_HOST_ROAM
 
 cppflags-$(CONFIG_WLAN_POWER_DEBUGFS) += -DWLAN_POWER_DEBUGFS
-
-cppflags-$(CONFIG_WLAN_MWS_INFO_DEBUGFS) += -DWLAN_MWS_INFO_DEBUGFS
 
 # Enable object manager reference count debug infrastructure
 cppflags-$(CONFIG_WLAN_OBJMGR_DEBUG) += -DWLAN_OBJMGR_DEBUG
@@ -1784,9 +1766,6 @@ cppflags-$(CONFIG_FEATURE_BECN_STATS) += -DWLAN_FEATURE_BEACON_RECEPTION_STATS
 
 #Set RX_PERFORMANCE
 cppflags-$(CONFIG_RX_PERFORMANCE) += -DRX_PERFORMANCE
-
-#Set QCS403_MEM_OPTIMIZE
-cppflags-$(CONFIG_QCS403_MEM_OPTIMIZE) += -DQCS403_MEM_OPTIMIZE
 
 #Enable OL debug and wmi unified functions
 cppflags-$(CONFIG_ATH_PERF_PWR_OFFLOAD) += -DATH_PERF_PWR_OFFLOAD
@@ -2076,9 +2055,6 @@ cppflags-$(CONFIG_QCACLD_FEATURE_COEX_CONFIG) += -DFEATURE_COEX_CONFIG
 #Flag to enable MPTA helper feature
 cppflags-$(CONFIG_QCACLD_FEATURE_MPTA_HELPER) += -DFEATURE_MPTA_HELPER
 
-#Flag to enable get hw capability
-cppflags-$(CONFIG_QCACLD_FEATURE_HW_CAPABILITY) += -DFEATURE_HW_CAPABILITY
-
 ifdef CONFIG_SCHED_HISTORY_SIZE
 ccflags-y += -DWLAN_SCHED_HISTORY_SIZE=$(CONFIG_SCHED_HISTORY_SIZE)
 endif
@@ -2108,9 +2084,6 @@ ifdef CONFIG_CFG_NUM_RX_IND_RECORD
 ccflags-y += -DOL_RX_INDICATION_MAX_RECORDS=$(CONFIG_CFG_NUM_RX_IND_RECORD)
 endif
 
-ifdef CONFIG_TGT_NUM_MSDU_DESC
-ccflags-y += -DCFG_TGT_NUM_MSDU_DESC=$(CONFIG_TGT_NUM_MSDU_DESC)
-endif
 
 KBUILD_CPPFLAGS += $(cppflags-y)
 

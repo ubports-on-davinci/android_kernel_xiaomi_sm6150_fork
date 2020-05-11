@@ -200,6 +200,7 @@ enum csr_roam_stats_classtypes {
 	eCsrMaxStats
 };
 
+#ifdef FEATURE_WLAN_DIAG_SUPPORT
 enum csr_diagwlan_status_eventsubtype {
 	eCSR_WLAN_STATUS_CONNECT = 0,
 	eCSR_WLAN_STATUS_DISCONNECT
@@ -217,6 +218,8 @@ enum csr_diagwlan_status_eventreason {
 	eCSR_REASON_ROAM_HO_FAIL,
 
 };
+
+#endif /* FEATURE_WLAN_DIAG_SUPPORT */
 
 struct csr_channel {
 	uint8_t numChannels;
@@ -578,12 +581,10 @@ struct csr_config {
 	uint32_t tx_aggr_sw_retry_threshold_bk;
 	uint32_t tx_aggr_sw_retry_threshold_vi;
 	uint32_t tx_aggr_sw_retry_threshold_vo;
-	uint32_t tx_aggr_sw_retry_threshold;
 	uint32_t tx_non_aggr_sw_retry_threshold_be;
 	uint32_t tx_non_aggr_sw_retry_threshold_bk;
 	uint32_t tx_non_aggr_sw_retry_threshold_vi;
 	uint32_t tx_non_aggr_sw_retry_threshold_vo;
-	uint32_t tx_non_aggr_sw_retry_threshold;
 	struct wmi_per_roam_config per_roam_config;
 	bool enable_bcast_probe_rsp;
 	bool is_fils_enabled;
